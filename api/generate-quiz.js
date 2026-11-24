@@ -55,7 +55,7 @@ ${bookContext}
 4. 오답을 골라도 내용을 이해할 수 있도록 친절하고 구체적인 해설을 적을 것.`;
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
