@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 자동 독서 퀴즈</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-amber-50/70 text-slate-800 flex flex-col items-center py-10 px-4">
+  <div class="w-full max-w-xl">
+    <header class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-14 h-14 bg-amber-500 text-white rounded-2xl shadow-md mb-3 text-2xl">
+        📚
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+        AI 자동 독서 퀴즈
+      </h1>
+      <p class="text-sm text-slate-600 mt-1.5">
+        책 제목과 출판사를 입력하면 줄거리를 파악해 맞춤형 퀴즈를 만들어 드려요.
+      </p>
+    </header>
+
+    <section id="step-input" class="bg-white rounded-3xl shadow-sm border border-amber-100 p-6 sm:p-8 space-y-5">
+      <div id="error-box" class="hidden p-3.5 rounded-xl bg-red-50 text-red-600 text-sm font-medium"></div>
+
+      <div>
+        <label class="block text-sm font-bold text-slate-700 mb-1.5">
+          책 제목 <span class="text-red-500">*</span>
+        </label>
+        <input
+          id="input-title"
+          type="text"
+          placeholder="예: 마당을 나온 암탉, 어린 왕자"
+          class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
+        />
+      </div>
+
+      <div>
+        <label class="block text-sm font-bold text-slate-700 mb-1.5">
+          출판사 <span class="text-slate-400 font-normal">(입력 시 정확도 향상)</span>
+        </label>
+        <input
+          id="input-publisher"
+          type="text"
+          placeholder="예: 사계절, 문학동네, 비룡소"
+          class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
+        />
+      </div>
+
+      <div>
+        <label class="block text-sm font-bold text-slate-700 mb-1.5">퀴즈 난이도</label>
+        <div id="difficulty-group" class="grid grid-cols-3 gap-2.5">
+          <button type="button" data-level="초등 저학년" class="diff-btn py-2.5 px-3 rounded-xl text-sm font-semibold border bg-slate-50 text-slate-600 border-slate-200">
+            초등 저학년
+          </button>
+          <button type="button" data-level="초등 고학년" class="diff-btn py-2.5 px-3 rounded-xl text-sm font-semibold border bg-amber-500 text-white border-amber-500 shadow-sm">
+            초등 고학년
+          </button>
+          <button type="button" data-level="청소년·성인" class="diff-btn py-2.5 px-3 rounded-xl text-sm font-semibold border bg-slate-50 text-slate-600 border-slate-200">
+            청소년·성인
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-bold text-slate-700 mb-1.5">
+          기억나는 줄거리나 메모 <span class="text-slate-400 font-normal">(선택)</span>
+        </label>
+        <textarea
+          id="input-note"
+          rows="2"
+          placeholder="아주 최신 책이거나 동명의 책이 많을 때 간단한 줄거리를 적어주시면 더 정확합니다."
+          class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+        ></textarea>
+      </div>
+
+      <button
+        id="btn-generate"
+        type="button"
+        class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md transition text-base"
+      >
+        ✨ 책 내용 분석하고 퀴즈 만들기
+      </button>
+    </section>
+
+    <section id="step-loading" class="hidden bg-white rounded-3xl shadow-sm border border-amber-100 p-10 text-center space-y-4">
+      <div class="w-10 h-10 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin mx-auto"></div>
+      <h2 class="text-lg font-bold text-slate-800">도서 내용을 분석해 퀴즈를 출제하고 있어요</h2>
+      <p id="loading-desc" class="text-sm text-slate-500">잠시만 기다려 주세요... (약 3~5초 소요)</p>
+    </section>
+
+    <section id="step-quiz" class="hidden space-y-4">
+      <div id="book-card" class="bg-white rounded-2xl p-4 border border-amber-100 shadow-sm flex items-center gap-4"></div>
+
+      <div class="bg-white rounded-3xl shadow-sm border border-amber-100 p-6 sm:p-8">
+        <div class="flex justify-between items-center text-xs font-bold text-amber-600 mb-2">
+          <span id="quiz-progress-text">문제 1 / 5</span>
+          <span id="quiz-progress-pct">20% 진행</span>
+        </div>
+        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-6">
+          <div id="quiz-progress-bar" class="h-full bg-amber-500 transition-all duration-300" style="width: 20%"></div>
+        </div>
+
+        <h3 id="quiz-question" class="text-lg font-bold text-slate-900 leading-snug mb-6"></h3>
+        <div id="quiz-options" class="space-y-3"></div>
+
+        <div id="quiz-explanation" class="hidden mt-6 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+          <p id="explanation-title" class="text-sm font-bold text-slate-800"></p>
+          <p id="explanation-body" class="text-sm text-slate-600 leading-relaxed"></p>
+        </div>
+
+        <button
+          id="btn-next"
+          type="button"
+          class="hidden w-full mt-6 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition"
+        >
+          다음 문제
+        </button>
+      </div>
+    </section>
+
+    <section id="step-result" class="hidden bg-white rounded-3xl shadow-sm border border-amber-100 p-6 sm:p-8 text-center space-y-6">
+      <div>
+        <p class="text-sm font-bold text-amber-600 mb-1">퀴즈 완료!</p>
+        <h2 id="result-score" class="text-2xl font-extrabold text-slate-900"></h2>
+        <p id="result-book" class="text-sm text-slate-500 mt-1"></p>
+      </div>
+
+      <div id="result-list" class="text-left space-y-3 border-t border-b border-slate-100 py-5"></div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button id="btn-retry" type="button" class="py-3 px-4 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition">
+          ↻ 다시 풀기
+        </button>
+        <button id="btn-reset" type="button" class="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition">
+          다른 책 퀴즈 내기
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    let difficulty = '초등 고학년';
+    let bookInfo = null;
+    let quizzes = [];
+    let currentIndex = 0;
+    let userAnswers = [];
+    let answered = false;
+
+    const sections = {
+      input: document.getElementById('step-input'),
+      loading: document.getElementById('step-loading'),
+      quiz: document.getElementById('step-quiz'),
+      result: document.getElementById('step-result'),
+    };
+
+    function showStep(stepName) {
+      Object.entries(sections).forEach(([key, el]) => {
+        el.classList.toggle('hidden', key !== stepName);
+      });
+    }
+
+    document.querySelectorAll('.diff-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        difficulty = btn.dataset.level;
+        document.querySelectorAll('.diff-btn').forEach((b) => {
+          const active = b.dataset.level === difficulty;
+          b.className = active
+            ? 'diff-btn py-2.5 px-3 rounded-xl text-sm font-semibold border bg-amber-500 text-white border-amber-500 shadow-sm'
+            : 'diff-btn py-2.5 px-3 rounded-xl text-sm font-semibold border bg-slate-50 text-slate-600 border-slate-200';
+        });
+      });
+    });
+
+    document.getElementById('btn-generate').addEventListener('click', async () => {
+      const title = document.getElementById('input-title').value.trim();
+      const publisher = document.getElementById('input-publisher').value.trim();
+      const extraNote = document.getElementById('input-note').value.trim();
+      const errorBox = document.getElementById('error-box');
+
+      if (!title) {
+        errorBox.textContent = '책 제목을 입력해 주세요.';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      errorBox.classList.add('hidden');
+      document.getElementById('loading-desc').textContent = `『${title}』의 줄거리와 핵심 내용을 분석 중입니다. (약 3~5초 소요)`;
+      showStep('loading');
+
+      try {
+        const res = await fetch('/api/generate-quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, publisher, difficulty, extraNote }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '퀴즈 생성에 실패했습니다.');
+
+        bookInfo = data.bookInfo;
+        quizzes = data.quizzes;
+        currentIndex = 0;
+        userAnswers = [];
+        renderBookCard();
+        renderQuestion();
+        showStep('quiz');
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.remove('hidden');
+        showStep('input');
+      }
+    });
+
+    function renderBookCard() {
+      const card = document.getElementById('book-card');
+      const thumbHtml = bookInfo.thumbnail
+        ? `<img src="${bookInfo.thumbnail}" alt="${bookInfo.title}" class="w-12 h-16 object-cover rounded-lg shrink-0" />`
+        : `<div class="w-12 h-16 bg-amber-100 rounded-lg flex items-center justify-center text-xl shrink-0">📖</div>`;
+
+      card.innerHTML = `
+        ${thumbHtml}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md">${difficulty}</span>
+            <span class="text-xs text-slate-500 truncate">${bookInfo.publisher}</span>
+          </div>
+          <h2 class="font-bold text-slate-900 truncate mt-1">${bookInfo.title}</h2>
+          ${bookInfo.authors ? `<p class="text-xs text-slate-500 truncate">${bookInfo.authors}</p>` : ''}
+        </div>
+      `;
+    }
+
+    function renderQuestion() {
+      answered = false;
+      const q = quizzes[currentIndex];
+      const total = quizzes.length;
+      const pct = Math.round(((currentIndex + 1) / total) * 100);
+
+      document.getElementById('quiz-progress-text').textContent = `문제 ${currentIndex + 1} / ${total}`;
+      document.getElementById('quiz-progress-pct').textContent = `${pct}% 진행`;
+      document.getElementById('quiz-progress-bar').style.width = `${pct}%`;
+      document.getElementById('quiz-question').textContent = `Q${currentIndex + 1}. ${q.question}`;
+
+      document.getElementById('quiz-explanation').classList.add('hidden');
+      const nextBtn = document.getElementById('btn-next');
+      nextBtn.classList.add('hidden');
+      nextBtn.textContent = currentIndex + 1 < total ? '다음 문제' : '결과 확인하기';
+
+      const optionsBox = document.getElementById('quiz-options');
+      optionsBox.innerHTML = '';
+
+      q.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left p-4 rounded-2xl border-2 border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 text-slate-700 transition flex items-center justify-between gap-3';
+        btn.innerHTML = `<span class="text-sm sm:text-base"><strong class="mr-2">${idx + 1}.</strong>${opt}</span>`;
+        btn.addEventListener('click', () => handleSelectOption(idx));
+        optionsBox.appendChild(btn);
+      });
+    }
+
+    function handleSelectOption(selectedIdx) {
+      if (answered) return;
+      answered = true;
+      userAnswers.push(selectedIdx);
+
+      const q = quizzes[currentIndex];
+      const buttons = document.getElementById('quiz-options').children;
+
+      Array.from(buttons).forEach((btn, idx) => {
+        btn.disabled = true;
+        if (idx === q.answerIndex) {
+          btn.className = 'w-full text-left p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-bold flex items-center justify-between gap-3';
+          btn.innerHTML += '<span>✅</span>';
+        } else if (idx === selectedIdx) {
+          btn.className = 'w-full text-left p-4 rounded-2xl border-2 border-rose-400 bg-rose-50 text-rose-900 flex items-center justify-between gap-3';
+          btn.innerHTML += '<span>❌</span>';
+        } else {
+          btn.className = 'w-full text-left p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 text-slate-400 flex items-center justify-between gap-3';
+        }
+      });
+
+      const isRight = selectedIdx === q.answerIndex;
+      document.getElementById('explanation-title').textContent = isRight
+        ? '💡 정답입니다!'
+        : `💡 아쉬워요! 정답은 ${q.answerIndex + 1}번입니다.`;
+      document.getElementById('explanation-body').textContent = q.explanation;
+      document.getElementById('quiz-explanation').classList.remove('hidden');
+      document.getElementById('btn-next').classList.remove('hidden');
+    }
+
+    document.getElementById('btn-next').addEventListener('click', () => {
+      if (currentIndex + 1 < quizzes.length) {
+        currentIndex++;
+        renderQuestion();
+      } else {
+        renderResult();
+        showStep('result');
+      }
+    });
+
+    function renderResult() {
+      const score = userAnswers.reduce((acc, ans, idx) => (ans === quizzes[idx].answerIndex ? acc + 1 : acc), 0);
+      document.getElementById('result-score').textContent = `총 ${quizzes.length}문제 중 ${score}문제 정답`;
+      document.getElementById('result-book').textContent = `『${bookInfo.title}』 독서 퀴즈 결과`;
+
+      const list = document.getElementById('result-list');
+      list.innerHTML = quizzes
+        .map((q, idx) => {
+          const isRight = userAnswers[idx] === q.answerIndex;
+          return `
+            <div class="p-3.5 rounded-xl bg-slate-50 space-y-1">
+              <p class="text-sm font-bold text-slate-800">${isRight ? '✅' : '❌'} Q${idx + 1}. ${q.question}</p>
+              <p class="text-xs text-slate-600 pl-6">정답: <span class="font-semibold">${q.options[q.answerIndex]}</span></p>
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    document.getElementById('btn-retry').addEventListener('click', () => {
+      currentIndex = 0;
+      userAnswers = [];
+      renderQuestion();
+      showStep('quiz');
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      document.getElementById('input-title').value = '';
+      document.getElementById('input-publisher').value = '';
+      document.getElementById('input-note').value = '';
+      showStep('input');
+    });
+  </script>
+</body>
+</html>
