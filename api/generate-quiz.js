@@ -50,43 +50,57 @@ ${bookContext}
 
 [출제 규칙]
 1. 반드시 실제 책의 줄거리, 등장인물, 핵심 사건과 교훈에 기반해 정확하게 출제할 것.
-2. 난이도(${difficulty})에 알맞은 어휘와 질문 깊이를 사용할 것.
+2. 난이도(${difficulty})에 맞는 어휘와 질문 깊이를 사용할 것.
 3. 각 문제는 4지선다형 객관식이며, 정답은 반드시 1개만 명확히 존재할 것.
 4. 오답을 골라도 내용을 이해할 수 있도록 친절하고 구체적인 해설을 적을 것.`;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'ARRAY',
-              items: {
-                type: 'OBJECT',
-                properties: {
-                  question: { type: 'STRING' },
-                  options: { type: 'ARRAY', items: { type: 'STRING' } },
-                  answerIndex: { type: 'INTEGER' },
-                  explanation: { type: 'STRING' },
-                },
-                required: ['question', 'options', 'answerIndex', 'explanation'],
-              },
+    const requestBody = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        thinkingConfig: { thinkingBudget: 0 },
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              question: { type: 'STRING' },
+              options: { type: 'ARRAY', items: { type: 'STRING' } },
+              answerIndex: { type: 'INTEGER' },
+              explanation: { type: 'STRING' },
             },
+            required: ['question', 'options', 'answerIndex', 'explanation'],
           },
-        }),
-      }
-    );
+        },
+      },
+    });
 
-    const geminiData = await geminiRes.json();
+    // 서버 혼잡(503/429) 시 1.5초 간격으로 최대 3회 자동 재시도
+    let geminiRes;
+    let geminiData;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
+        }
+      );
+      geminiData = await geminiRes.json();
+
+      if (geminiRes.ok) break;
+      if ((geminiRes.status === 503 || geminiRes.status === 429) && attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+      break;
+    }
 
     if (!geminiRes.ok) {
       console.error('Gemini API Error:', geminiData);
       return res.status(500).json({
-        error: geminiData.error?.message || 'AI 퀴즈 생성 응답 오류가 발생했습니다.',
+        error: '현재 AI 서버에 접속자가 많습니다. 5초 후 다시 버튼을 눌러 주세요.',
       });
     }
 
